@@ -1,128 +1,136 @@
-"use client";
-import { useState } from "react";
+'use client';
+
+import { useState } from 'react';
+import {
+  Upload,
+  Button,
+  Input,
+  message,
+  Table,
+  Typography,
+  Row,
+  Col,
+  Space,
+  Divider,
+} from 'antd';
+import { UploadOutlined, SearchOutlined } from '@ant-design/icons';
+import axios from 'axios';
+
+const { Title } = Typography;
 
 export default function HomePage() {
   const [file, setFile] = useState(null);
-  const [hesapKodu, setHesapKodu] = useState("");
+  const [hesapKodu, setHesapKodu] = useState('');
   const [data, setData] = useState([]);
   const [loading, setLoading] = useState(false);
-  const [message, setMessage] = useState("");
 
-  // Excel dosyası yükle
+  const handleFileChange = (info) => {
+    setFile(info.file);
+  };
+
   const handleFileUpload = async () => {
     if (!file) {
-      setMessage("Lütfen bir dosya seçin");
+      message.warning('Lütfen bir dosya seçin.');
       return;
     }
 
     const formData = new FormData();
-    formData.append("file", file);
+    formData.append('file', file.originFileObj || file);
 
     setLoading(true);
-    setMessage("");
-
     try {
-      const res = await fetch("http://localhost:5000/upload", {
-        method: "POST",
-        body: formData,
-      });
-
-      const result = await res.json();
-
-      if (res.ok) {
-        setMessage("Dosya başarıyla yüklendi.");
+      const res = await axios.post('http://localhost:5000/upload', formData);
+      if (res.status === 200) {
+        message.success('Dosya başarıyla yüklendi.');
       } else {
-        setMessage("Yükleme hatası: " + result.error);
+        message.error('Yükleme sırasında hata oluştu.');
       }
     } catch (err) {
-      setMessage("Yükleme sırasında hata oluştu.");
+      message.error('Yükleme hatası: ' + err.message);
     } finally {
       setLoading(false);
     }
   };
 
-  // Hesap koduna göre veri çek
   const handleGetData = async () => {
     if (!hesapKodu) {
-      setMessage("Lütfen bir hesap kodu girin.");
+      message.warning('Lütfen bir hesap kodu girin.');
       return;
     }
 
     setLoading(true);
-    setMessage("");
-
     try {
-      const res = await fetch("http://localhost:5000/get-data", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ codes: [hesapKodu] }),
+      const res = await axios.post('http://localhost:5000/get-data', {
+        codes: [hesapKodu],
       });
 
-      const result = await res.json();
-
-      if (res.ok) {
-        setData(result);
-        setMessage("Veri başarıyla alındı.");
+      if (res.status === 200) {
+        setData(res.data);
+        message.success('Veri başarıyla alındı.');
       } else {
-        setMessage("Hata: " + result.error);
+        message.error('Veri alınamadı.');
       }
     } catch (err) {
-      setMessage("Veri çekilirken hata oluştu.");
+      message.error('Hata: ' + err.message);
     } finally {
       setLoading(false);
     }
   };
 
+  const columns = data.length
+    ? Object.keys(data[0]).map((key) => ({
+        title: key,
+        dataIndex: key,
+        key,
+      }))
+    : [];
+
   return (
-    <div style={{ padding: 32 }}>
-      <h1>Excel Yükleme ve Hesap Kodu Sorgulama</h1>
+    <div style={{ padding: 40 }}>
+      <Title level={3}>e-Beyanname – Excel Yükleme ve Hesap Kodu Sorgulama</Title>
 
-      <div style={{ marginTop: 16 }}>
-        <input type="file" onChange={(e) => setFile(e.target.files[0])} />
-        <button onClick={handleFileUpload} disabled={loading}>
-          {loading ? "Yükleniyor..." : "Excel Yükle"}
-        </button>
-      </div>
+      <Row gutter={24}>
+        {/* Sol Taraf: Dosya Yükleme */}
+        <Col xs={24} md={12}>
+          <Space direction="vertical" style={{ width: '100%' }}>
+            <Title level={5}>1. Excel Yükleme</Title>
+            <Upload beforeUpload={() => false} onChange={handleFileChange} maxCount={1}>
+              <Button icon={<UploadOutlined />}>Dosya Seç</Button>
+            </Upload>
+            <Button type="primary" onClick={handleFileUpload} loading={loading}>
+              Yükle
+            </Button>
+          </Space>
+        </Col>
 
-      <div style={{ marginTop: 24 }}>
-        <input
-          type="text"
-          placeholder="Hesap Kodu"
-          value={hesapKodu}
-          onChange={(e) => setHesapKodu(e.target.value)}
-        />
-        <button onClick={handleGetData} disabled={loading}>
-          {loading ? "Sorgulanıyor..." : "Verileri Getir"}
-        </button>
-      </div>
+        {/* Sağ Taraf: Hesap Kodu Arama */}
+        <Col xs={24} md={12}>
+          <Space direction="vertical" style={{ width: 250}}>
+            <Title level={5}>2. Hesap Kodu Sorgulama</Title>
+            <Input.Search
+              placeholder="Hesap Kodu Giriniz"
+              enterButton={<SearchOutlined />}
+              size="middle"
+              value={hesapKodu}
+              width="10px"
+              onChange={(e) => setHesapKodu(e.target.value)}
+              onSearch={handleGetData}
+              loading={loading}
+            />
+          </Space>
+        </Col>
+      </Row>
 
-      {message && <p style={{ marginTop: 16 }}>{message}</p>}
+      <Divider />
 
+      {/* Tablo */}
       {data.length > 0 && (
-        <table border="1" style={{ marginTop: 24, borderCollapse: "collapse" }}>
-          <thead>
-            <tr>
-              {Object.keys(data[0]).map((key) => (
-                <th key={key} style={{ padding: 8 }}>
-                  {key}
-                </th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {data.map((row, idx) => (
-              <tr key={idx}>
-                {Object.values(row).map((value, i) => (
-                  <td key={i} style={{ padding: 8 }}>
-                    {value}
-                  </td>
-                ))}
-              </tr>
-            ))}
-          </tbody>
-        </table>
+        <Table
+          columns={columns}
+          dataSource={data}
+          rowKey={(row, index) => index}
+          pagination={{ pageSize: 10 }}
+        />
       )}
     </div>
   );
